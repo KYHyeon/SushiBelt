@@ -188,4 +188,103 @@ struct VisibilityEventTests {
     #expect(!baseline.isEmpty)
     #expect(combined == baseline)
   }
+
+  @Test
+  func test_reentry_should_capture_the_updated_payload_after_exiting_with_the_original() {
+    let (detector, tracker) = makeSUT()
+    var events: [String] = []
+    tracker.subscribeVisibility { event in
+      switch event {
+      case .entered(let item): events.append("enter:\(item.userInfo?["marker"] as? String ?? "missing")")
+      case .exited(let item): events.append("exit:\(item.userInfo?["marker"] as? String ?? "missing")")
+      }
+    }
+    let visible = CGRect(x: 0, y: 0, width: 100, height: 100)
+    let belowThreshold = CGRect(x: 0, y: 0, width: 100, height: 30)
+
+    detector.detect(items: [makeItem()]) { visible }
+    detector.detect(items: [makeItem(marker: "updated")]) { visible }
+    detector.detect(items: [makeItem(marker: "updated")]) { belowThreshold }
+    detector.detect(items: [makeItem(marker: "updated")]) { visible }
+    tracker.clearCache()
+
+    #expect(events == ["enter:original", "exit:original", "enter:updated", "exit:updated"])
+  }
+
+  @Test
+  func test_invalid_visibility_ratios_should_exit_once_and_allow_a_valid_reentry() {
+    let (detector, tracker) = makeSUT()
+    var events: [String] = []
+    tracker.subscribeVisibility { event in
+      switch event {
+      case .entered: events.append("enter")
+      case .exited: events.append("exit")
+      }
+    }
+    let visible = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    detector.detect(items: [makeItem()]) { visible }
+    let invalidRatios: [CGFloat] = [.nan, .infinity, -0.1, 1.1]
+    for ratio in invalidRatios {
+      let item = VisibleStateDetectorItem(
+        id: "item", target: UIView(frame: visible), ratio: ratio, kind: .visibility
+      )
+      detector.detect(items: [item]) { visible }
+    }
+    detector.detect(items: [makeItem()]) { visible }
+    tracker.clearCache()
+
+    #expect(events == ["enter", "exit", "enter", "exit"])
+  }
+
+  @Test
+  func test_visibility_only_items_should_not_forward_nested_scroll_operations() {
+    let (detector, tracker) = makeSUT()
+    let target = NestedTarget()
+    let item = VisibleStateDetectorItem(id: "nested", target: target, ratio: 0.5, kind: .visibility)
+    var events: [String] = []
+    tracker.subscribeVisibility { event in
+      switch event {
+      case .entered: events.append("enter")
+      case .exited: events.append("exit")
+      }
+    }
+
+    detector.detect(items: [item]) { CGRect(x: 0, y: 0, width: 100, height: 100) }
+    tracker.clearCache()
+    tracker.clearCache()
+
+    #expect(target.operations.isEmpty)
+    #expect(events == ["enter", "exit"])
+  }
+
+  @Test
+  func test_removal_should_release_the_original_target_after_delivering_exit() {
+    let (detector, tracker) = makeSUT()
+    let visible = CGRect(x: 0, y: 0, width: 100, height: 100)
+    weak var originalTarget: UIView?
+    var exitedMarkers: [String] = []
+    tracker.subscribeVisibility { event in
+      if case .exited(let item) = event {
+        exitedMarkers.append(item.userInfo?["marker"] as? String ?? "missing")
+      }
+    }
+    autoreleasepool {
+      let target = UIView(frame: visible)
+      originalTarget = target
+      let item = VisibleStateDetectorItem(
+        id: "item", target: target, ratio: 0.5, userInfo: ["marker": "original"], kind: .visibility
+      )
+      detector.detect(items: [item]) { visible }
+    }
+    detector.detect(items: [makeItem(marker: "updated")]) { visible }
+    #expect(originalTarget != nil)
+
+    autoreleasepool {
+      detector.detect(items: []) { visible }
+    }
+
+    #expect(exitedMarkers == ["original"])
+    #expect(originalTarget == nil)
+  }
 }
