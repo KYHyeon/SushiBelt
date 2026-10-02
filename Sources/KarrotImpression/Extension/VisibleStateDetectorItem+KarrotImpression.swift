@@ -10,5 +10,5 @@ import Foundation
 
 extension VisibleStateDetectorItem: SushiBeltTrackerIdentifier {
 
-  var trackingIdentifer: String { id }
+  var trackingIdentifer: String { "\(kind.rawValue):\(id)" }
 }

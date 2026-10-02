@@ -22,6 +22,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
   private var detectorItemFactory: DetectorItemFactory?
   private var filter: ImpressionItemFilter?
   private var callback: ImpressionEventCallback?
+  private var visibilityCallback: ((VisibilityEvent) -> Void)?
 
   private var scrollView: UIScrollView?
 
@@ -106,6 +107,10 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
     self.callback = callback
   }
 
+  func subscribeVisibility(callback: @escaping (VisibilityEvent) -> Void) {
+    visibilityCallback = callback
+  }
+
   func trackManually(shouldResetCache: Bool) {
     guard isViewControllerVisible else {
       return
@@ -117,7 +122,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
   }
 
   func clearCache() {
-    guard callback != nil else { return }
+    guard callback != nil || visibilityCallback != nil else { return }
     detector.clear()
   }
 
@@ -231,7 +236,8 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
   }
 
   private func detectVisibleItemsIfNeeded(source: String) {
-    guard let scrollView, let detectorItemFactory, let trackingRectangle, callback != nil else {
+    guard let scrollView, let detectorItemFactory, let trackingRectangle,
+      callback != nil || visibilityCallback != nil else {
       return
     }
 
@@ -287,6 +293,10 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
 }
 
 extension ImpressionEventTracker: VisibleStateDetectorDelegate {
+
+  func onVisibilityChanged(_ event: VisibilityEvent) {
+    visibilityCallback?(event)
+  }
 
   func onDetect(visibleItem: VisibleStateDetectorItem) {
     if let filter, filter(visibleItem) == false {

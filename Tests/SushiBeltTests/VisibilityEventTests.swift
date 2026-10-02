@@ -1,0 +1,191 @@
+import Testing
+import UIKit
+
+@testable import KarrotImpression
+
+@MainActor
+struct VisibilityEventTests {
+  private final class NestedTarget: ImpressionDetectorTarget, ImpressionInnerScrollable {
+    let frameInWindow = CGRect(x: 0, y: 0, width: 100, height: 100)
+    var operations: [String] = []
+    func trackImpressionEvent() { operations.append("track") }
+    func clearImpressionEvent() { operations.append("clear") }
+  }
+
+  private func makeSUT() -> (VisibleStateDetector, ImpressionEventTracker) {
+    let detector = VisibleStateDetector(
+      sushiBeltTracker: SushiBeltTracker(),
+      sushiBeltDebugger: SushiBeltDebuggerSpy()
+    )
+    return (detector, ImpressionEventTracker(
+      detector: detector,
+      application: UIApplication.self,
+      cooltimeCache: InMemoryImpressionCooltimeCacheImpl(dateProvider: { Date() }),
+      usesInitialVisibility: false
+    ))
+  }
+
+  private func makeItem(marker: String = "original", kind: VisibleStateDetectorItem.TrackingKind = .visibility) -> VisibleStateDetectorItem {
+    VisibleStateDetectorItem(
+      id: "item",
+      target: UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100)),
+      ratio: kind == .impression ? 0.1 : 0.5,
+      userInfo: ["marker": marker],
+      kind: kind
+    )
+  }
+
+  @Test
+  func test_visibility_should_use_its_own_ratio_and_bypass_the_impression_filter() {
+    let (detector, tracker) = makeSUT()
+    let item = makeItem()
+    var impressions = 0
+    var events: [String] = []
+    tracker.setFilter { _ in false }
+    tracker.subscribe { _ in impressions += 1 }
+    tracker.subscribeVisibility { event in
+      switch event {
+      case .entered: events.append("enter")
+      case .exited: events.append("exit")
+      }
+    }
+
+    for height in [30, 50, 70, 49, 80] {
+      detector.detect(items: [makeItem(kind: .impression), item]) { CGRect(x: 0, y: 0, width: 100, height: height) }
+    }
+
+    #expect(impressions == 0)
+    #expect(events == ["enter", "exit", "enter"])
+  }
+
+  @Test
+  func test_clear_should_exit_with_the_original_item_for_a_visibility_only_subscription() {
+    let (detector, tracker) = makeSUT()
+    var exitedMarkers: [String] = []
+    tracker.subscribeVisibility { event in
+      if case .exited(let item) = event {
+        exitedMarkers.append(item.userInfo?["marker"] as? String ?? "missing")
+      }
+    }
+    let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
+    detector.detect(items: [makeItem()]) { rect }
+    detector.detect(items: [makeItem(marker: "reconfigured")]) { rect }
+
+    tracker.clearCache()
+    tracker.clearCache()
+
+    #expect(exitedMarkers == ["original"])
+  }
+
+  @Test
+  func test_removal_should_exit_and_reentry_with_the_same_id_should_start_a_new_session() {
+    let (detector, tracker) = makeSUT()
+    var events: [String] = []
+    tracker.subscribeVisibility { event in
+      switch event {
+      case .entered: events.append("enter")
+      case .exited: events.append("exit")
+      }
+    }
+    let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    detector.detect(items: [makeItem()]) { rect }
+    detector.detect(items: []) { rect }
+    detector.detect(items: [makeItem()]) { rect }
+    tracker.clearCache()
+
+    #expect(events == ["enter", "exit", "enter", "exit"])
+  }
+
+  @Test
+  func test_visibility_should_reenter_during_the_impression_cooldown() {
+    let (detector, tracker) = makeSUT()
+    let item = VisibleStateDetectorItem(
+      id: "item",
+      target: UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100)),
+      ratio: 0.1,
+      cooltime: .init(key: "item", coolingTime: 60)
+    )
+    var impressions = 0
+    var entries = 0
+    tracker.subscribe { _ in impressions += 1 }
+    tracker.subscribeVisibility { event in
+      if case .entered = event { entries += 1 }
+    }
+    let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
+
+    detector.detect(items: [item, makeItem()]) { rect }
+    tracker.clearCache()
+    detector.detect(items: [item, makeItem()]) { rect }
+
+    #expect(impressions == 1)
+    #expect(entries == 2)
+  }
+
+  @Test
+  func test_impression_items_should_not_deliver_visibility_events() {
+    let (detector, tracker) = makeSUT()
+    var impressions = 0
+    var visibilityCount = 0
+    tracker.subscribe { _ in impressions += 1 }
+    tracker.subscribeVisibility { _ in visibilityCount += 1 }
+    let item = makeItem(kind: .impression)
+
+    detector.detect(items: [item]) { CGRect(x: 0, y: 0, width: 100, height: 100) }
+    tracker.clearCache()
+
+    #expect(impressions == 1)
+    #expect(visibilityCount == 0)
+  }
+
+  @Test
+  func test_items_with_the_same_id_should_track_each_kind_at_its_own_ratio() {
+    let (detector, tracker) = makeSUT()
+    let view = UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    let impression = VisibleStateDetectorItem(id: "same", target: view, ratio: 0.1)
+    let visibility = VisibleStateDetectorItem(id: "same", target: view, ratio: 0.5, kind: .visibility)
+    var events: [String] = []
+    tracker.subscribe { _ in events.append("impression") }
+    tracker.subscribeVisibility {
+      switch $0 {
+      case .entered: events.append("enter")
+      case .exited: events.append("exit")
+      }
+    }
+
+    detector.detect(items: [impression, visibility]) { CGRect(x: 0, y: 0, width: 100, height: 30) }
+    #expect(events == ["impression"])
+    detector.detect(items: [impression, visibility]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
+    #expect(events == ["impression", "enter"])
+    detector.detect(items: [visibility]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
+    #expect(events == ["impression", "enter"])
+    tracker.clearCache()
+
+    #expect(events == ["impression", "enter", "exit"])
+    #expect(Set([impression, visibility]).count == 2)
+    #expect(impression.kind == .impression)
+  }
+
+  @Test
+  func test_adding_visibility_should_not_duplicate_nested_scroll_operations() {
+    func operations(includeVisibility: Bool) -> [String] {
+      let (detector, tracker) = makeSUT()
+      let view = NestedTarget()
+      var items = [VisibleStateDetectorItem(id: "same", target: view, ratio: 0.1)]
+      if includeVisibility {
+        items.append(VisibleStateDetectorItem(id: "same", target: view, ratio: 0.5, kind: .visibility))
+      }
+      tracker.subscribe { _ in }
+      tracker.subscribeVisibility { _ in }
+      detector.detect(items: items) { CGRect(x: 0, y: 0, width: 100, height: 100) }
+      tracker.clearCache()
+      return view.operations
+    }
+
+    let baseline = operations(includeVisibility: false)
+    let combined = operations(includeVisibility: true)
+
+    #expect(!baseline.isEmpty)
+    #expect(combined == baseline)
+  }
+}
