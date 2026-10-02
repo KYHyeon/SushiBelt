@@ -2,7 +2,7 @@ import UIKit
 
 final class ViewabilityTrackingItem: TrackingItem {
   let trackingIdentifer: String
-  var registration: VisibleStateDetectorItem
+  var registration: ViewabilityItem
   private weak var handler: ViewabilityHandler?
   var target: ImpressionDetectorTarget { registration.target }
   var ratio: CGFloat { registration.ratio }
@@ -12,8 +12,8 @@ final class ViewabilityTrackingItem: TrackingItem {
     return ratio.isFinite && (0...1).contains(ratio)
   }
 
-  init(item: VisibleStateDetectorItem, handler: ViewabilityHandler) {
-    trackingIdentifer = item.trackingIdentifer
+  init(item: ViewabilityItem, handler: ViewabilityHandler) {
+    trackingIdentifer = "viewability:\(item.id)"
     registration = item
     self.handler = handler
   }

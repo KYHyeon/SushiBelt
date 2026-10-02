@@ -12,28 +12,37 @@ import UIKit
 /// Other scroll view types produce no items; use a custom `DetectorItemFactory` for them.
 public final class DefaultDetectorItemFactory: DetectorItemFactory {
 
-  private let mapper: (UIView) -> [VisibleStateDetectorItem]
+  private let mapper: (UIView) -> VisibleStateDetectorItem?
+  private let viewabilityMapper: (UIView) -> ViewabilityItem?
 
-  public init(mapper: @escaping (UIView) -> VisibleStateDetectorItem?) {
-    self.mapper = { mapper($0).map { [$0] } ?? [] }
+  public convenience init(mapper: @escaping (UIView) -> VisibleStateDetectorItem?) {
+    self.init(mapper: mapper, viewabilityMapper: { _ in nil })
   }
 
-  /// Maps a visible cell to independent tracking items.
-  public init(itemsMapper: @escaping (UIView) -> [VisibleStateDetectorItem]) {
-    mapper = itemsMapper
+  /// Maps each visible cell to independent impression and viewability registrations.
+  public init(
+    mapper: @escaping (UIView) -> VisibleStateDetectorItem?,
+    viewabilityMapper: @escaping (UIView) -> ViewabilityItem?
+  ) {
+    self.mapper = mapper
+    self.viewabilityMapper = viewabilityMapper
   }
 
   public func makeVisibleDetectorItems(view: UIScrollView) -> [VisibleStateDetectorItem] {
+    visibleCells(in: view).compactMap(mapper)
+  }
+
+  public func makeViewabilityItems(view: UIScrollView) -> [ViewabilityItem] {
+    visibleCells(in: view).compactMap(viewabilityMapper)
+  }
+
+  private func visibleCells(in view: UIScrollView) -> [UIView] {
     switch view {
     case let tableView as UITableView:
-      tableView.visibleCells.flatMap { cell in
-        mapper(cell)
-      }
+      tableView.visibleCells
 
     case let collectionView as UICollectionView:
-      collectionView.visibleCells.flatMap { cell in
-        mapper(cell)
-      }
+      collectionView.visibleCells
 
     default:
       []

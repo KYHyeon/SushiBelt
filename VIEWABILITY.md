@@ -12,20 +12,34 @@ let impressionItem = VisibleStateDetectorItem(
   target: cell,
   ratio: 0.1
 )
-let viewabilityItem = VisibleStateDetectorItem(
+let viewabilityItem = ViewabilityItem(
   id: itemID,
   target: cell,
-  ratio: 0.5,
-  kind: .viewability
+  ratio: 0.5
 )
 ```
 
-Each item uses its own `ratio`. `kind` defaults to `.impression`;
-`.viewability` enables continuous enter/exit events. Viewability ratios must be
-finite values in `0...1`. The pair `(id, kind)` must be unique within the tracker.
-Use `DefaultDetectorItemFactory(itemsMapper:)` to return both items for a cell;
-the existing single-item `mapper:` initializer remains available. Nested scroll
-tracking and clearing are forwarded only by `.impression` items.
+Each item uses its own `ratio`. `VisibleStateDetectorItem` registers ordinary
+impressions; `ViewabilityItem` registers continuous enter/exit events. Viewability
+ratios must be finite values in `0...1`. IDs must be unique within each registration
+type; the same ID can independently register an impression and viewability target.
+Duplicate IDs within one list use the first registration.
+
+```swift
+let factory = DefaultDetectorItemFactory(
+  mapper: { cell in
+    VisibleStateDetectorItem(id: itemID(for: cell), target: cell, ratio: 0.1)
+  },
+  viewabilityMapper: { cell in
+    ViewabilityItem(id: itemID(for: cell), target: cell, ratio: 0.5)
+  }
+)
+```
+
+The existing single-item `mapper:` initializer remains available. Custom
+`DetectorItemFactory` implementations can supply `makeViewabilityItems(view:)`;
+its default implementation returns an empty list. Nested scroll tracking and
+clearing are forwarded only by impression registrations.
 
 ## Subscribe independently
 
@@ -68,6 +82,8 @@ For an append, omit `clearCache()` to preserve existing sessions.
 
 ## Compatibility
 
-Existing `subscribe` calls and item initializers keep their behavior. Custom
+Existing `subscribe` calls, impression item initializers, and impression-only
+factories keep their behavior. The unreleased `kind` and `itemsMapper:` APIs are
+replaced by typed registrations and separate factory mappers. Custom
 `ImpressionEventTrackable` implementations and generated mocks must implement
 the new `subscribeViewability` requirement. SwiftUI APIs are unchanged.

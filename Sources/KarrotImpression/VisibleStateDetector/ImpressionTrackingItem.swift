@@ -10,7 +10,7 @@ final class ImpressionTrackingItem: TrackingItem {
   let isValid = true
 
   init(item: VisibleStateDetectorItem, handler: ImpressionHandler) {
-    trackingIdentifer = item.trackingIdentifer
+    trackingIdentifer = "impression:\(item.id)"
     registration = item
     self.handler = handler
   }

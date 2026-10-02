@@ -249,6 +249,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
 
     detector.detect(
       items: items,
+      viewabilityItems: detectorItemFactory.makeViewabilityItems(view: scrollView),
       trackingRect: trackingRectangle,
     )
   }

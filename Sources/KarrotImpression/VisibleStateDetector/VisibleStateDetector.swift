@@ -28,10 +28,14 @@ final class VisibleStateDetector: VisibleStateDetectable {
     sushiBeltTracker.delegate = self
   }
 
-  func detect(items: [VisibleStateDetectorItem], trackingRect: @escaping () -> CGRect) {
+  func detect(
+    items: [VisibleStateDetectorItem],
+    viewabilityItems: [ViewabilityItem],
+    trackingRect: @escaping () -> CGRect
+  ) {
     trackingRectProvider = trackingRect
-    impressionHandler.update(items: items.filter { $0.kind == .impression })
-    viewabilityHandler.update(items: items.filter { $0.kind == .viewability })
+    impressionHandler.update(items: items)
+    viewabilityHandler.update(items: viewabilityItems)
 
     let viewport = trackingRect()
     let sushiBeltTrackerItems = impressionHandler.makeTrackerItems(viewport: viewport)

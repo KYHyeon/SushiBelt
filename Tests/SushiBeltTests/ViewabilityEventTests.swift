@@ -25,13 +25,20 @@ struct ViewabilityEventTests {
     ))
   }
 
-  private func makeItem(marker: String = "original", kind: VisibleStateDetectorItem.TrackingKind = .viewability) -> VisibleStateDetectorItem {
+  private func makeItem(marker: String = "original") -> ViewabilityItem {
+    ViewabilityItem(
+      id: "item",
+      target: UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100)),
+      ratio: 0.5,
+      userInfo: ["marker": marker]
+    )
+  }
+
+  private func makeImpressionItem() -> VisibleStateDetectorItem {
     VisibleStateDetectorItem(
       id: "item",
       target: UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100)),
-      ratio: kind == .impression ? 0.1 : 0.5,
-      userInfo: ["marker": marker],
-      kind: kind
+      ratio: 0.1
     )
   }
 
@@ -51,7 +58,7 @@ struct ViewabilityEventTests {
     }
 
     for height in [30, 50, 70, 49, 80] {
-      detector.detect(items: [makeItem(kind: .impression), item]) { CGRect(x: 0, y: 0, width: 100, height: height) }
+      detector.detect(items: [makeImpressionItem()], viewabilityItems: [item]) { CGRect(x: 0, y: 0, width: 100, height: height) }
     }
 
     #expect(impressions == 0)
@@ -68,8 +75,8 @@ struct ViewabilityEventTests {
       }
     }
     let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
-    detector.detect(items: [makeItem()]) { rect }
-    detector.detect(items: [makeItem(marker: "reconfigured")]) { rect }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { rect }
+    detector.detect(items: [], viewabilityItems: [makeItem(marker: "reconfigured")]) { rect }
 
     tracker.clearCache()
     tracker.clearCache()
@@ -89,9 +96,9 @@ struct ViewabilityEventTests {
     }
     let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    detector.detect(items: [makeItem()]) { rect }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { rect }
     detector.detect(items: []) { rect }
-    detector.detect(items: [makeItem()]) { rect }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { rect }
     tracker.clearCache()
 
     #expect(events == ["enter", "exit", "enter", "exit"])
@@ -114,9 +121,9 @@ struct ViewabilityEventTests {
     }
     let rect = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    detector.detect(items: [item, makeItem()]) { rect }
+    detector.detect(items: [item], viewabilityItems: [makeItem()]) { rect }
     tracker.clearCache()
-    detector.detect(items: [item, makeItem()]) { rect }
+    detector.detect(items: [item], viewabilityItems: [makeItem()]) { rect }
 
     #expect(impressions == 1)
     #expect(entries == 2)
@@ -129,7 +136,7 @@ struct ViewabilityEventTests {
     var viewabilityCount = 0
     tracker.subscribe { _ in impressions += 1 }
     tracker.subscribeViewability { _ in viewabilityCount += 1 }
-    let item = makeItem(kind: .impression)
+    let item = makeImpressionItem()
 
     detector.detect(items: [item]) { CGRect(x: 0, y: 0, width: 100, height: 100) }
     tracker.clearCache()
@@ -139,11 +146,11 @@ struct ViewabilityEventTests {
   }
 
   @Test
-  func test_items_with_the_same_id_should_track_each_kind_at_its_own_ratio() {
+  func test_items_with_the_same_id_should_track_each_registration_type_at_its_own_ratio() {
     let (detector, tracker) = makeSUT()
     let view = UIView(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     let impression = VisibleStateDetectorItem(id: "same", target: view, ratio: 0.1)
-    let viewability = VisibleStateDetectorItem(id: "same", target: view, ratio: 0.5, kind: .viewability)
+    let viewability = ViewabilityItem(id: "same", target: view, ratio: 0.5)
     var events: [String] = []
     tracker.subscribe { _ in events.append("impression") }
     tracker.subscribeViewability {
@@ -153,17 +160,16 @@ struct ViewabilityEventTests {
       }
     }
 
-    detector.detect(items: [impression, viewability]) { CGRect(x: 0, y: 0, width: 100, height: 30) }
+    detector.detect(items: [impression], viewabilityItems: [viewability]) { CGRect(x: 0, y: 0, width: 100, height: 30) }
     #expect(events == ["impression"])
-    detector.detect(items: [impression, viewability]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
+    detector.detect(items: [impression], viewabilityItems: [viewability]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
     #expect(events == ["impression", "enter"])
-    detector.detect(items: [viewability]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
+    detector.detect(items: [], viewabilityItems: [viewability]) { CGRect(x: 0, y: 0, width: 100, height: 60) }
     #expect(events == ["impression", "enter"])
     tracker.clearCache()
 
     #expect(events == ["impression", "enter", "exit"])
-    #expect(Set([impression, viewability]).count == 2)
-    #expect(impression.kind == .impression)
+    #expect(impression.id == viewability.id)
   }
 
   @Test
@@ -171,13 +177,14 @@ struct ViewabilityEventTests {
     func operations(includeViewability: Bool) -> [String] {
       let (detector, tracker) = makeSUT()
       let view = NestedTarget()
-      var items = [VisibleStateDetectorItem(id: "same", target: view, ratio: 0.1)]
+      let items = [VisibleStateDetectorItem(id: "same", target: view, ratio: 0.1)]
+      var viewabilityItems: [ViewabilityItem] = []
       if includeViewability {
-        items.append(VisibleStateDetectorItem(id: "same", target: view, ratio: 0.5, kind: .viewability))
+        viewabilityItems.append(ViewabilityItem(id: "same", target: view, ratio: 0.5))
       }
       tracker.subscribe { _ in }
       tracker.subscribeViewability { _ in }
-      detector.detect(items: items) { CGRect(x: 0, y: 0, width: 100, height: 100) }
+      detector.detect(items: items, viewabilityItems: viewabilityItems) { CGRect(x: 0, y: 0, width: 100, height: 100) }
       tracker.clearCache()
       return view.operations
     }
@@ -202,10 +209,10 @@ struct ViewabilityEventTests {
     let visible = CGRect(x: 0, y: 0, width: 100, height: 100)
     let belowThreshold = CGRect(x: 0, y: 0, width: 100, height: 30)
 
-    detector.detect(items: [makeItem()]) { visible }
-    detector.detect(items: [makeItem(marker: "updated")]) { visible }
-    detector.detect(items: [makeItem(marker: "updated")]) { belowThreshold }
-    detector.detect(items: [makeItem(marker: "updated")]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem(marker: "updated")]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem(marker: "updated")]) { belowThreshold }
+    detector.detect(items: [], viewabilityItems: [makeItem(marker: "updated")]) { visible }
     tracker.clearCache()
 
     #expect(events == ["enter:original", "exit:original", "enter:updated", "exit:updated"])
@@ -223,15 +230,15 @@ struct ViewabilityEventTests {
     }
     let visible = CGRect(x: 0, y: 0, width: 100, height: 100)
 
-    detector.detect(items: [makeItem()]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { visible }
     let invalidRatios: [CGFloat] = [.nan, .infinity, -0.1, 1.1]
     for ratio in invalidRatios {
-      let item = VisibleStateDetectorItem(
-        id: "item", target: UIView(frame: visible), ratio: ratio, kind: .viewability
+      let item = ViewabilityItem(
+        id: "item", target: UIView(frame: visible), ratio: ratio
       )
-      detector.detect(items: [item]) { visible }
+      detector.detect(items: [], viewabilityItems: [item]) { visible }
     }
-    detector.detect(items: [makeItem()]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem()]) { visible }
     tracker.clearCache()
 
     #expect(events == ["enter", "exit", "enter", "exit"])
@@ -241,7 +248,7 @@ struct ViewabilityEventTests {
   func test_viewability_only_items_should_not_forward_nested_scroll_operations() {
     let (detector, tracker) = makeSUT()
     let target = NestedTarget()
-    let item = VisibleStateDetectorItem(id: "nested", target: target, ratio: 0.5, kind: .viewability)
+    let item = ViewabilityItem(id: "nested", target: target, ratio: 0.5)
     var events: [String] = []
     tracker.subscribeViewability { event in
       switch event {
@@ -250,7 +257,7 @@ struct ViewabilityEventTests {
       }
     }
 
-    detector.detect(items: [item]) { CGRect(x: 0, y: 0, width: 100, height: 100) }
+    detector.detect(items: [], viewabilityItems: [item]) { CGRect(x: 0, y: 0, width: 100, height: 100) }
     tracker.clearCache()
     tracker.clearCache()
 
@@ -272,12 +279,12 @@ struct ViewabilityEventTests {
     autoreleasepool {
       let target = UIView(frame: visible)
       originalTarget = target
-      let item = VisibleStateDetectorItem(
-        id: "item", target: target, ratio: 0.5, userInfo: ["marker": "original"], kind: .viewability
+      let item = ViewabilityItem(
+        id: "item", target: target, ratio: 0.5, userInfo: ["marker": "original"]
       )
-      detector.detect(items: [item]) { visible }
+      detector.detect(items: [], viewabilityItems: [item]) { visible }
     }
-    detector.detect(items: [makeItem(marker: "updated")]) { visible }
+    detector.detect(items: [], viewabilityItems: [makeItem(marker: "updated")]) { visible }
     #expect(originalTarget != nil)
 
     autoreleasepool {

@@ -15,8 +15,8 @@ public typealias ImpressionItemFilter = (VisibleStateDetectorItem) -> Bool
 public typealias ImpressionEventCallback = (VisibleStateDetectorItem) -> Void
 
 public enum ViewabilityEvent {
-  case entered(VisibleStateDetectorItem)
-  case exited(VisibleStateDetectorItem)
+  case entered(ViewabilityItem)
+  case exited(ViewabilityItem)
 }
 
 /// @mockable

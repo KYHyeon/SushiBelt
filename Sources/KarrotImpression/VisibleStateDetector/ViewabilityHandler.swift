@@ -2,9 +2,9 @@ import UIKit
 
 final class ViewabilityHandler {
   private var registrations: [String: ViewabilityTrackingItem] = [:]
-  private var activeSessions: [String: VisibleStateDetectorItem] = [:]
+  private var activeSessions: [String: ViewabilityItem] = [:]
 
-  func update(items: [VisibleStateDetectorItem]) {
+  func update(items: [ViewabilityItem]) {
     var next: [String: ViewabilityTrackingItem] = [:]
     for registration in items where next[registration.id] == nil {
       let trackingItem = registrations[registration.id]
@@ -19,7 +19,7 @@ final class ViewabilityHandler {
     registrations.values.compactMap { $0.makeTrackerItem(viewport: viewport) }
   }
 
-  func enter(registration: VisibleStateDetectorItem, delegate: VisibleStateDetectorDelegate?) {
+  func enter(registration: ViewabilityItem, delegate: VisibleStateDetectorDelegate?) {
     guard activeSessions[registration.id] == nil else { return }
     activeSessions[registration.id] = registration
     delegate?.onViewabilityChanged(.entered(registration))
