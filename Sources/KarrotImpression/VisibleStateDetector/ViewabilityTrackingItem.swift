@@ -1,6 +1,6 @@
 import Foundation
 
-final class VisibilityTrackingItem: TrackingItem {
+final class ViewabilityTrackingItem: TrackingItem {
   let trackingIdentifer: String
   var currentItem: VisibleStateDetectorItem?
   let tracksExit = true
@@ -21,11 +21,11 @@ final class VisibilityTrackingItem: TrackingItem {
     case .entered:
       guard enteredItem == nil, let currentItem else { return }
       enteredItem = currentItem
-      delegate?.onVisibilityChanged(.entered(currentItem))
+      delegate?.onViewabilityChanged(.entered(currentItem))
     case .exited:
       guard let original = enteredItem else { return }
       enteredItem = nil
-      delegate?.onVisibilityChanged(.exited(original))
+      delegate?.onViewabilityChanged(.exited(original))
     case .ended, .evaluated, .clearing:
       break
     }

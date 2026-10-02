@@ -22,7 +22,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
   private var detectorItemFactory: DetectorItemFactory?
   private var filter: ImpressionItemFilter?
   private var callback: ImpressionEventCallback?
-  private var visibilityCallback: ((VisibilityEvent) -> Void)?
+  private var viewabilityCallback: ((ViewabilityEvent) -> Void)?
 
   private var scrollView: UIScrollView?
 
@@ -107,8 +107,8 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
     self.callback = callback
   }
 
-  func subscribeVisibility(callback: @escaping (VisibilityEvent) -> Void) {
-    visibilityCallback = callback
+  func subscribeViewability(callback: @escaping (ViewabilityEvent) -> Void) {
+    viewabilityCallback = callback
   }
 
   func trackManually(shouldResetCache: Bool) {
@@ -122,7 +122,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
   }
 
   func clearCache() {
-    guard callback != nil || visibilityCallback != nil else { return }
+    guard callback != nil || viewabilityCallback != nil else { return }
     detector.clear()
   }
 
@@ -237,7 +237,7 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
 
   private func detectVisibleItemsIfNeeded(source: String) {
     guard let scrollView, let detectorItemFactory, let trackingRectangle,
-      callback != nil || visibilityCallback != nil else {
+      callback != nil || viewabilityCallback != nil else {
       return
     }
 
@@ -294,8 +294,8 @@ final class ImpressionEventTracker: ImpressionEventTrackable {
 
 extension ImpressionEventTracker: VisibleStateDetectorDelegate {
 
-  func onVisibilityChanged(_ event: VisibilityEvent) {
-    visibilityCallback?(event)
+  func onViewabilityChanged(_ event: ViewabilityEvent) {
+    viewabilityCallback?(event)
   }
 
   func onDetect(visibleItem: VisibleStateDetectorItem) {

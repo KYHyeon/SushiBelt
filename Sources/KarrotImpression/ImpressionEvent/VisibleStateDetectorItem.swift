@@ -13,7 +13,7 @@ public struct VisibleStateDetectorItem: Identifiable, Hashable {
 
   public enum TrackingKind: String, Hashable {
     case impression
-    case visibility
+    case viewability
   }
 
   public let id: String

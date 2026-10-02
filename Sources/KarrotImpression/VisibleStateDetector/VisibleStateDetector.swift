@@ -69,8 +69,8 @@ final class VisibleStateDetector: VisibleStateDetectable {
     switch item.kind {
     case .impression:
       ImpressionTrackingItem(item: item)
-    case .visibility:
-      VisibilityTrackingItem(item: item)
+    case .viewability:
+      ViewabilityTrackingItem(item: item)
     }
   }
 

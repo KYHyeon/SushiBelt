@@ -1,7 +1,7 @@
-# UIKit visibility events
+# UIKit viewability events
 
 Unreleased API. A single tracker delivers normal impressions and continuous
-visibility transitions independently. Duration thresholds, item business IDs,
+viewability transitions independently. Duration thresholds, item business IDs,
 session storage, and event delivery belong to the caller.
 
 ## Declare both thresholds
@@ -12,16 +12,16 @@ let impressionItem = VisibleStateDetectorItem(
   target: cell,
   ratio: 0.1
 )
-let visibilityItem = VisibleStateDetectorItem(
+let viewabilityItem = VisibleStateDetectorItem(
   id: itemID,
   target: cell,
   ratio: 0.5,
-  kind: .visibility
+  kind: .viewability
 )
 ```
 
 Each item uses its own `ratio`. `kind` defaults to `.impression`;
-`.visibility` enables continuous enter/exit events. Visibility ratios must be
+`.viewability` enables continuous enter/exit events. Viewability ratios must be
 finite values in `0...1`. The pair `(id, kind)` must be unique within the tracker.
 Use `DefaultDetectorItemFactory(itemsMapper:)` to return both items for a cell;
 the existing single-item `mapper:` initializer remains available. Nested scroll
@@ -34,7 +34,7 @@ tracker.subscribe { item in
   // Normal impression, after the existing filter and cooldown.
 }
 
-tracker.subscribeVisibility { event in
+tracker.subscribeViewability { event in
   switch event {
   case .entered(let item):
     // Save the start time and immutable application payload.
@@ -44,8 +44,8 @@ tracker.subscribeVisibility { event in
 }
 ```
 
-- Visibility bypasses the impression filter and cooldown.
-- Visibility-only subscriptions are supported.
+- Viewability bypasses the impression filter and cooldown.
+- Viewability-only subscriptions are supported.
 - Exits occur below the threshold, on removal, and on `clearCache()`.
 - The exit carries the item captured at entry, not the current reused cell data.
 - Registering with a view controller also clears tracking when that controller
@@ -70,4 +70,4 @@ For an append, omit `clearCache()` to preserve existing sessions.
 
 Existing `subscribe` calls and item initializers keep their behavior. Custom
 `ImpressionEventTrackable` implementations and generated mocks must implement
-the new `subscribeVisibility` requirement. SwiftUI APIs are unchanged.
+the new `subscribeViewability` requirement. SwiftUI APIs are unchanged.
