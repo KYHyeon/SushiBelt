@@ -9,7 +9,8 @@ enum TrackingEvent {
 }
 
 protocol TrackingItem: AnyObject, SushiBeltTrackerIdentifier {
-  var currentItem: VisibleStateDetectorItem? { get set }
+  var target: ImpressionDetectorTarget { get }
+  var ratio: CGFloat { get }
   var tracksExit: Bool { get }
   var isValid: Bool { get }
 
@@ -18,8 +19,8 @@ protocol TrackingItem: AnyObject, SushiBeltTrackerIdentifier {
 
 extension TrackingItem {
   func makeTrackerItem(viewport: CGRect) -> SushiBeltTrackerItem? {
-    guard let currentItem, isValid else { return nil }
-    let frame = currentItem.target.frameInWindow
+    guard isValid else { return nil }
+    let frame = target.frameInWindow
     guard viewport.intersection(frame).height > 0 else { return nil }
     return SushiBeltTrackerItem(
       id: .trackingIdentifier(self),
